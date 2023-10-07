@@ -6,7 +6,7 @@ func ParseID(config IDConfig) {
 
 }
 
-func IntToBitString(num int) string {
+func IntToBitString(num int64) string {
 	bitCount := strconv.IntSize
 	bits := make([]byte, bitCount)
 

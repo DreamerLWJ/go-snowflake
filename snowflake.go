@@ -52,19 +52,26 @@ type Generator struct {
 	sequenceMask       int64 // 生成序列的掩码(用于限制)
 
 	mu            sync.Mutex
-	sequence      int64 // 毫秒内序列 TODO 可见性问题
-	lastTimestamp int64 // 上次生成 ID 的时间戳 TODO 可见性问题
+	sequence      int64 // 毫秒内序列
+	lastTimestamp int64 // 上次生成 ID 的时间戳
 }
 
-// NewStandardSnowflakeGenerator 获取标准的雪花 ID 生成器
-func NewStandardSnowflakeGenerator(c Config) (*Generator, error) {
-	g := Generator{Config: c}
+// NewGenerator 获取雪花 ID 生成器
+func NewGenerator(config Config) (*Generator, error) {
+	g := Generator{Config: config}
 	err := g.Init()
 	if err != nil {
 		return &g, err
 	}
-	if g.timestampLeftShift > 63 {
-		return &g, ErrIDTooLong
+	return &g, nil
+}
+
+// NewStandardSnowflakeGenerator 获取标准的雪花 ID 生成器
+func NewStandardSnowflakeGenerator(startTime time.Time, worker, dataCenterID int64) (*Generator, error) {
+	g := Generator{Config: DefaultConfig(startTime, worker, dataCenterID)}
+	err := g.Init()
+	if err != nil {
+		return &g, err
 	}
 
 	return &g, nil
@@ -80,6 +87,9 @@ func (s *Generator) Init() error {
 	s.workerIDShift = s.SequenceIDBits
 	s.dataCenterIDShift = s.SequenceIDBits + s.WorkerIDBits
 	s.timestampLeftShift = s.SequenceIDBits + s.WorkerIDBits + s.DataCenterIDBits
+	if s.timestampLeftShift+41 > 63 {
+		return ErrIDTooLong
+	}
 	s.sequenceMask = -1 ^ (-1 << s.SequenceIDBits)
 	s.sequence = 0
 	s.lastTimestamp = -1
@@ -109,6 +119,7 @@ func (s *Generator) Next() (res ID, err error) {
 		}
 	} else {
 		s.sequence = 0
+		s.lastTimestamp = timestamp
 	}
 	s.mu.Unlock()
 
